@@ -1,0 +1,9 @@
+{
+  "name": "cartas-multijugador",
+  "version": "1.0.0",
+  "description": "Juego de cartas español multijugador online (2 a 4 jugadores)",
+  "main": "server.js",
+  "scripts": { "start": "node server.js", "test": "node test.js" },
+  "engines": { "node": ">=18" },
+  "license": "MIT"
+}
