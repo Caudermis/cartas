@@ -5,7 +5,7 @@ const { ACT, view } = require('./rules.js');
 const PORT = process.env.PORT || 3000;
 const DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const FILE = path.join(DIR, 'rooms.json');
-const PAGE = path.join(__dirname, 'public', 'index.html');
+const PAGE = [path.join(__dirname, 'public', 'index.html'), path.join(__dirname, 'index.html')].find(f => fs.existsSync(f));
 
 let rooms = {}; // código -> { S: estado de la partida, tok: {idJugador: token}, t: última actividad }
 try { rooms = JSON.parse(fs.readFileSync(FILE, 'utf8')); } catch (e) { /* primera ejecución */ }
@@ -38,7 +38,10 @@ const body = req => new Promise((ok, no) => {
 http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x'), u = url.pathname;
   try {
-    if (req.method === 'GET' && (u === '/' || u === '/index.html')) { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); return res.end(fs.readFileSync(PAGE)); }
+    if (req.method === 'GET' && (u === '/' || u === '/index.html')) {
+      if (!PAGE) { res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' }); return res.end('Falta el archivo public/index.html en el repositorio.'); }
+      const html = fs.readFileSync(PAGE); res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); return res.end(html);
+    }
     if (req.method === 'GET' && u === '/healthz') return send(res, 200, { ok: 1 });
     if (req.method === 'GET' && u === '/api/events') { // tiempo real: cada jugador recibe SOLO su vista filtrada
       const code = String(url.searchParams.get('code') || '').toUpperCase(), pid = url.searchParams.get('pid');
@@ -86,7 +89,7 @@ http.createServer(async (req, res) => {
       S.seq++; R.t = Date.now(); save(); push(code); return send(res, 200, { ok: 1 });
     }
     send(res, 404, { error: 'No encontrado' });
-  } catch (e) { try { send(res, 400, { error: 'Petición no válida' }); } catch (_) { /* conexión cerrada */ } }
+  } catch (e) { try { if (!res.headersSent) send(res, 400, { error: 'Petición no válida' }); else res.end(); } catch (_) { /* conexión cerrada */ } }
 }).listen(PORT, () => console.log('Servidor en el puerto ' + PORT));
 
 setInterval(() => { for (const c in conns) for (const p in conns[c]) for (const r of conns[c][p]) r.write(': ping\n\n'); }, 20000);
