@@ -43,8 +43,8 @@ async function game(n) {
   while (host.v.phase !== 'over' && steps++ < 6000) {
     const v = host.v;
     if (v.phase === 'peek') {
-      ck(v.cpp === v.round + 3, 'cartas por ronda'); lastRound = v.round;
-      for (const b of bots) { const want = Math.floor(v.cpp / 2); ck(b.v.allow[b.pid] === want, `mirar ${want} con ${v.cpp} cartas`);
+      lastRound = v.round;
+      for (const b of bots) { const handSize = b.v.size[b.pid]; const want = Math.floor(handSize / 2); ck(b.v.hands[b.pid].length === handSize, `mano de ${handSize} cartas en ronda ${v.round}`); ck(b.v.allow[b.pid] === want, `mirar ${want} con ${handSize} cartas`);
         for (let k = 0; k < want; k++) { const r = await act(b, 'peek', { i: k }); ck(r.st === 200 && Number.isInteger(r.j.card), 'peek devuelve la carta'); }
         ck((await act(b, 'peek', { i: 0 })).st === 400, 'no se puede mirar de más'); await act(b, 'ready'); }
       continue;
