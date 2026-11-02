@@ -14,7 +14,7 @@ const lg=(S,t)=>{S.log=(S.log||[]).concat(t).slice(-6)};
 const ev=(S,t)=>{S.ev={n:Math.random(),t};lg(S,t)};
 function recycle(S){if(S.deck.length)return true;if(S.disc.length<2)return false;const top=S.disc.pop();S.deck=shuf(S.disc);S.disc=[top];return true}
 function deal(S,st){const d=shuf([...Array(48).keys()]);S.hands={};S.allow={};S.players.forEach(p=>{const n=S.size[p.id];S.hands[p.id]=d.splice(0,n);S.allow[p.id]=Math.floor(n/2)});
- Object.assign(S,{deck:d,disc:[],phase:'peek',peeks:{},ready:{},planted:{},last:null,dec:null,qd:null,held:null,p12:null,turn:null,sub:null,start:st,ti:S.players.findIndex(p=>p.id==st)});lg(S,'Ronda '+S.round+': empieza '+nm(S,st))}
+ Object.assign(S,{deck:d,disc:[],phase:'peek',peeks:{},peeked:{},ready:{},planted:{},last:null,dec:null,qd:null,held:null,p12:null,turn:null,sub:null,start:st,ti:S.players.findIndex(p=>p.id==st)});lg(S,'Ronda '+S.round+': empieza '+nm(S,st))}
 function next(S){const n=S.players.length;for(let k=1;k<=n;k++){const i=(S.ti+k)%n,p=S.players[i];if(!S.planted[p.id]){S.ti=i;S.turn=p.id;S.sub='draw';S.held=null;return}}S.turn=null;S.sub='wait'}
 function close(S){S.phase='reveal';S.turn=null;S.sub=null;const sc={};S.players.forEach(p=>sc[p.id]=S.hands[p.id].reduce((a,c)=>a+val(c),0));let w=S.players[0].id;S.players.forEach(p=>{if(sc[p.id]<sc[w])w=p.id});S.winner=w;(S.rounds=S.rounds||[]).push({r:S.round,n:Object.assign({},S.size),sc,w});lg(S,'Ronda '+S.round+' terminada: gana '+nm(S,w))}
 function chk(S){const all=S.players.every(p=>S.planted[p.id]),ok=all||(CFG.CLOSE_RULE=='lastTurn'&&S.last&&S.last.left.length==0);
@@ -26,7 +26,7 @@ const my=(S,pid)=>S.phase=='play'&&S.turn==pid;
 const ACT={
 join:(S,p,a)=>{if(S.players.some(x=>x.id==p))return;if(S.phase!='lobby')return'La partida ya ha empezado o terminó';if(S.players.length>=4)return'La sala está llena (4/4)';S.players.push({id:p,name:a.name})},
 start:(S,p)=>{if(S.host!=p||S.phase!='lobby')return'Solo el anfitrión puede iniciar';if(S.players.length<2)return'Hacen falta al menos 2 jugadores';S.round=1;S.rounds=[];newSizes(S);deal(S,S.players[Math.floor(Math.random()*S.players.length)].id)},
-peek:(S,p,a,out)=>{if(S.phase!='peek')return'No es la fase de mirar';if(S.hands[p][a.i]===undefined)return'Carta no válida';if((S.peeks[p]||0)>=S.allow[p])return'Ya has mirado todas las cartas permitidas ('+S.allow[p]+')';S.peeks[p]=(S.peeks[p]||0)+1;out.card=S.hands[p][a.i]},
+peek:(S,p,a,out)=>{if(S.phase!='peek')return'No es la fase de mirar';if(S.hands[p][a.i]===undefined)return'Carta no válida';if((S.peeks[p]||0)>=S.allow[p])return'Ya has mirado todas las cartas permitidas ('+S.allow[p]+')';S.peeked=S.peeked||{};S.peeked[p]=S.peeked[p]||[];if(S.peeked[p].includes(a.i))return'Ya has mirado esa carta';S.peeked[p].push(a.i);S.peeks[p]=(S.peeks[p]||0)+1;out.card=S.hands[p][a.i]},
 ready:(S,p)=>{if(S.phase!='peek')return;S.ready[p]=true;if(S.players.every(x=>S.ready[x.id])){S.phase='play';S.turn=S.start;S.sub='draw';lg(S,'Empieza '+nm(S,S.start))}},
 draw:(S,p)=>{if(!my(S,p)||S.sub!='draw')return'No puedes robar ahora';if(!recycle(S)){lg(S,'No quedan cartas para robar: '+nm(S,p)+' pasa');endTurn(S);return}S.held=S.deck.pop();S.sub='drawn'},
 replace:(S,p,a)=>{if(!my(S,p)||S.sub!='drawn')return'Acción no válida';const h=S.hands[p];if(h[a.i]===undefined)return'Carta no válida';const old=h[a.i];h[a.i]=S.held;S.disc.push(old);if(CFG.QD_ON_REPLACE)openQD(S,p,num(old),p);lg(S,nm(S,p)+' sustituyó una carta');endTurn(S)},
@@ -35,8 +35,9 @@ use11:(S,p)=>{if(!my(S,p)||S.sub!='drawn'||num(S.held)!=11)return'Solo un 11 rec
 look11:(S,p,a,out)=>{if(!my(S,p)||S.sub!='a11')return'Acción no válida';if(S.hands[p][a.i]===undefined)return'Carta no válida';out.card=S.hands[p][a.i];endTurn(S)},
 use12:(S,p)=>{if(!my(S,p)||S.sub!='drawn'||num(S.held)!=12)return'Solo un 12 recién robado tiene habilidad';S.disc.push(S.held);if(CFG.ABILITY_QD)openQD(S,p,12);S.held=null;S.sub='a12a';lg(S,nm(S,p)+' usa el 12')},
 pick12:(S,p,a,out)=>{if(!my(S,p)||S.sub!='a12a')return'Acción no válida';if(a.rp==p||!S.hands[a.rp]||S.hands[a.rp][a.ri]===undefined)return'Elige una carta de un rival';S.p12={rp:a.rp,ri:a.ri,c:S.hands[a.rp][a.ri]};S.sub='a12b';out.card=S.p12.c},
+cancel12:(S,p)=>{if(!my(S,p)||S.sub!='a12b'||!S.p12)return'Acción no válida';S.notice={id:Math.random(),type:'inspected',by:p,target:S.p12.rp,index:S.p12.ri,at:Date.now()};S.p12=null;endTurn(S)},
 swap12:(S,p,a,out)=>{if(!my(S,p)||S.sub!='a12b')return'Acción no válida';const q=S.p12,h=S.hands[p];if(h[a.i]===undefined)return'Carta no válida';if(S.hands[q.rp][q.ri]!==q.c){S.sub='a12a';S.p12=null;out.msg='Esa carta ya no está, elige otra';return}
- const t=h[a.i];h[a.i]=q.c;S.hands[q.rp][q.ri]=t;lg(S,nm(S,p)+' intercambió una carta con '+nm(S,q.rp));if(S.planted[q.rp])S.dec=q.rp;endTurn(S)},
+ const t=h[a.i];h[a.i]=q.c;S.hands[q.rp][q.ri]=t;S.notice={id:Math.random(),type:'swapped',by:p,target:q.rp,index:q.ri,at:Date.now()};lg(S,nm(S,p)+' intercambió una carta con '+nm(S,q.rp));if(S.planted[q.rp])S.dec=q.rp;endTurn(S)},
 quick:(S,p,a)=>{const q=S.qd;if(S.phase!='play'||!q||q.done||Date.now()>q.until)return'La ventana de descarte rápido está cerrada';if(q.ex==p)return'No puedes descartar rápido una carta que acabas de soltar de tu mano';if(S.turn==p&&S.sub=='drawn')return'Decide primero qué haces con la carta robada';if(q.tried.includes(p))return'Ya has intentado este descarte';const h=S.hands[p],c=h[a.i];if(c===undefined)return'Carta no válida';q.tried.push(p);
  if(num(c)==q.n){h.splice(a.i,1);S.disc.push(c);q.done=true;ev(S,nm(S,p)+' hizo descarte rápido de un '+q.n)}else{if(recycle(S))h.push(S.deck.pop());ev(S,'Intento incorrecto de '+nm(S,p)+': recibe una carta de penalización')}},
 plant:(S,p)=>{if(S.phase!='play'||S.planted[p])return;if(S.turn==p&&S.sub!='draw')return'Termina tu jugada antes de plantarte';S.planted[p]=true;if(!S.last)S.last={by:p,left:S.players.filter(x=>x.id!=p&&!S.planted[x.id]).map(x=>x.id)};else S.last.left=S.last.left.filter(x=>x!=p);lg(S,nm(S,p)+' se planta');chk(S)},
@@ -52,7 +53,7 @@ lobby:(S,p)=>{if(S.host!=p||S.phase!='over')return'Solo el anfitrión';Object.as
 function view(S,pid,on){
  const open=S.phase=='reveal'||S.phase=='over',v={now:Date.now(),me:pid,code:S.code,host:S.host,phase:S.phase,round:S.round,size:S.size||{},final:!!S.final,seq:S.seq,
   players:S.players.map(p=>({id:p.id,name:p.name,on:!!(on&&on[p.id])})),turn:S.turn,sub:S.sub,planted:S.planted||{},last:S.last||null,dec:S.dec||null,
-  peeks:S.peeks||{},ready:S.ready||{},allow:S.allow||{},rounds:S.rounds||[],winner:S.winner,log:S.log||[],ev:S.ev||null,start:S.start,
+  peeks:S.peeks||{},ready:S.ready||{},allow:S.allow||{},rounds:S.rounds||[],winner:S.winner,notice:S.notice||null,log:S.log||[],ev:S.ev||null,start:S.start,
   deckN:S.deck?S.deck.length:0,discN:S.disc?S.disc.length:0,discTop:S.disc&&S.disc.length?S.disc[S.disc.length-1]:null,qd:S.qd||null,chat:(S.chat||[]).slice(-80),hands:{}};
  for(const p of S.players){const h=(S.hands&&S.hands[p.id])||[];v.hands[p.id]=open?h.slice():h.map(()=>null)}
  if(S.turn==pid&&S.phase=='play'){v.held=S.held==null?null:S.held;if(S.p12)v.p12={rp:S.p12.rp,ri:S.p12.ri,c:S.p12.c}}
