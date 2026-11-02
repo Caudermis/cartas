@@ -53,7 +53,7 @@ lobby:(S,p)=>{if(S.host!=p||S.phase!='over')return'Solo el anfitrión';Object.as
 function view(S,pid,on){
  const open=S.phase=='reveal'||S.phase=='over',v={now:Date.now(),me:pid,code:S.code,host:S.host,phase:S.phase,round:S.round,size:S.size||{},final:!!S.final,seq:S.seq,
   players:S.players.map(p=>({id:p.id,name:p.name,on:!!(on&&on[p.id])})),turn:S.turn,sub:S.sub,planted:S.planted||{},last:S.last||null,dec:S.dec||null,
-  peeks:S.peeks||{},ready:S.ready||{},allow:S.allow||{},rounds:S.rounds||[],winner:S.winner,notice:S.notice||null,log:S.log||[],ev:S.ev||null,start:S.start,
+  peeks:S.peeks||{},ready:S.ready||{},allow:S.allow||{},rounds:S.rounds||[],winner:S.winner,notice:S.notice&&S.notice.target==pid?S.notice:null,log:S.log||[],ev:S.ev||null,start:S.start,
   deckN:S.deck?S.deck.length:0,discN:S.disc?S.disc.length:0,discTop:S.disc&&S.disc.length?S.disc[S.disc.length-1]:null,qd:S.qd||null,chat:(S.chat||[]).slice(-80),hands:{}};
  for(const p of S.players){const h=(S.hands&&S.hands[p.id])||[];v.hands[p.id]=open?h.slice():h.map(()=>null)}
  if(S.turn==pid&&S.phase=='play'){v.held=S.held==null?null:S.held;if(S.p12)v.p12={rp:S.p12.rp,ri:S.p12.ri,c:S.p12.c}}
