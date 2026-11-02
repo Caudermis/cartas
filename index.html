@@ -35,6 +35,8 @@ input{background:var(--pan);color:var(--ink);border:2px solid var(--line);border
 table{width:100%;border-collapse:collapse}td,th{padding:5px 6px;text-align:left;border-bottom:1px solid var(--line)}
 #chat{position:fixed;left:0;right:0;bottom:0;background:var(--pan);border-top:2px solid var(--line);padding:6px 10px calc(6px + env(safe-area-inset-bottom,0px));z-index:20}
 #chat summary{cursor:pointer;font-weight:600}#cl{max-height:28vh;overflow:auto;font-size:.9rem;padding:6px 0}#cl i{opacity:.6;font-style:normal;font-size:.75rem}
+.notice-slot{outline:4px solid #ffd54a!important;animation:noticePulse .55s ease-in-out 7}@keyframes noticePulse{50%{transform:translateY(-5px)}}
+.turn-banner{background:#ffd54a;color:#2b2118;border-radius:12px;padding:9px 14px;text-align:center;font-weight:700;animation:pu .8s infinite}.last-banner{position:sticky;top:4px;z-index:15;background:#ffd54a;color:#2b2118;border-radius:12px;padding:9px;text-align:center;font-weight:700;margin-bottom:8px}
 .toast{position:fixed;left:50%;top:calc(14px + env(safe-area-inset-top,0px));transform:translateX(-50%);background:var(--ac);color:#fff;padding:9px 18px;border-radius:99px;z-index:50;font-weight:600;max-width:92vw;text-align:center}
 </style></head>
 <body><main id="m"></main>
@@ -47,7 +49,7 @@ const nm=(S,id)=>(S.players.find(p=>p.id==id)||{}).name||'?';
 
 const $=s=>document.querySelector(s),esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const ls={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}}};
-let me='',tk='',code='',S=null,T=null,QM=false,OFF=0,CH=[],es=null,LOCAL=false,err='',lastEv;
+let me='',tk='',code='',S=null,T=null,QM=false,OFF=0,CH=[],es=null,LOCAL=false,err='',lastEv,lastNotice=null;
 const sn=()=>Date.now()+OFF,isMe=()=>S&&S.players.some(p=>p.id==me);
 const toast=m=>{const d=document.createElement('div');d.className='toast';d.textContent=m;document.body.appendChild(d);setTimeout(()=>d.remove(),2800)};
 const card=(c,face,k,at='')=>face?`<div class="c f${k?' k':''}" style="--s:${SC[sui(c)]}" ${at}><b>${num(c)}</b><i>${SU[sui(c)]}</i></div>`:`<div class="c b${k?' k':''}" ${at}></div>`;
@@ -55,14 +57,14 @@ async function api(p,b){const r=await fetch('/api/'+p,{method:'POST',headers:{'C
 async function post(type,args){try{const j=await api('act',{code,pid:me,token:tk,type,args:args||{}});if(j.msg)toast(j.msg);return j}catch(e){toast(e.message);return null}}
 const A=post,nameOf=()=>($('#nm')&&$('#nm').value.trim())||ls.get('c-name')||'';
 function connect(){if(es)es.close();es=new EventSource('/api/events?code='+code+'&pid='+me+'&token='+tk);
- es.onmessage=e=>{S=JSON.parse(e.data);OFF=S.now-Date.now();const first=lastEv===undefined;if(S.ev&&!first&&S.ev.n!==lastEv)toast(S.ev.t);lastEv=S.ev?S.ev.n:null;CH=S.chat||[];drawChat();render()}}
+ es.onmessage=e=>{S=JSON.parse(e.data);OFF=S.now-Date.now();const first=lastEv===undefined;if(S.ev&&!first&&S.ev.n!==lastEv)toast(S.ev.t);lastEv=S.ev?S.ev.n:null;if(S.notice&&S.notice.id!==lastNotice){lastNotice=S.notice.id;toast(S.notice.type==='swapped'?'¡Han cambiado una carta de tu mano!':'Han mirado una carta de tu mano');}CH=S.chat||[];drawChat();render()}}
 function start(j){code=j.code;me=j.pid;tk=j.token;ls.set('c-s-'+code,JSON.stringify(j));location.hash=code;lastEv=undefined;connect()}
 async function make(){const n=nameOf();if(!n)return toast('Escribe un nombre');ls.set('c-name',n);try{start(await api('create',{name:n}))}catch(e){toast(e.message)}}
 async function join(c){const n=nameOf();if(!n)return toast('Escribe un nombre');ls.set('c-name',n);c=(c||'').trim().toUpperCase();if(!/^[A-Z0-9]{3,8}$/.test(c))return toast('Código no válido');
  let old={};try{old=JSON.parse(ls.get('c-s-'+c)||'{}')}catch(e){}try{err='';start(await api('join',{code:c,name:n,pid:old.pid,token:old.token}))}catch(e){err='<p>'+e.message+'</p>';render()}}
 function canQ(){const q=S&&S.qd;return S&&S.phase=='play'&&isMe()&&q&&!q.done&&sn()<q.until&&q.ex!=me&&!(S.turn==me&&S.sub=='drawn')&&!q.tried.includes(me)}
 function ca(pid,i){const own=pid==me;if(S.phase=='peek')return own&&!S.ready[me]&&(S.peeks[me]||0)<S.allow[me]?'peek':'';if(S.phase!='play')return'';if(own&&QM&&canQ())return'quick';if(S.turn!=me)return'';if(own&&S.sub=='drawn')return'replace';if(own&&S.sub=='a11')return'look11';if(!own&&S.sub=='a12a')return'pick12';if(own&&S.sub=='a12b')return'swap12';return''}
-function hand(pid){const h=S.hands[pid]||[],rev=S.phase=='reveal'||S.phase=='over',x=S.p12;return`<div class="hand">${h.map((c,i)=>{let v=null;if(rev)v=c;else if(T&&T.p==pid&&T.i==i&&T.u>Date.now())v=T.c;else if(S.phase=='play'&&S.turn==me&&S.sub=='a12b'&&x&&x.rp==pid&&x.ri==i)v=x.c;const a=ca(pid,i);return card(v,v!=null,a,a?`data-a="${a}" data-p="${pid}" data-i="${i}"`:'')}).join('')}</div>`}
+function hand(pid){const h=S.hands[pid]||[],rev=S.phase=='reveal'||S.phase=='over',x=S.p12;return`<div class="hand">${h.map((c,i)=>{let v=null;if(rev)v=c;else if(T&&T.p==pid&&T.i==i&&T.u>Date.now())v=T.c;else if(S.phase=='play'&&S.turn==me&&S.sub=='a12b'&&x&&x.rp==pid&&x.ri==i)v=x.c;const a=ca(pid,i),marked=S.notice&&S.notice.target==pid&&S.notice.index==i&&Date.now()-S.notice.at<4000;return card(v,v!=null,a,a?`data-a="${a}" data-p="${pid}" data-i="${i}"`:'').replace('class="c b"',`class="c b${marked?' notice-slot':''}"`)}).join('')}</div>`}
 const tot=pid=>(S.rounds||[]).reduce((a,r)=>a+(r.sc[pid]||0),0);
 function render(){const m=$('#m');$('#chat').hidden=!S||!isMe();
  
@@ -76,13 +78,14 @@ function render(){const m=$('#m');$('#chat').hidden=!S||!isMe();
  else if(S.phase=='play'){const mine=S.turn==me;info=mine?({draw:'Tu turno: roba una carta',drawn:'Elige una carta tuya para sustituir, o descarta la robada',a11:'11: toca una carta tuya para mirarla',a12a:'12: toca una carta de un rival',a12b:'12: toca una carta tuya para intercambiarla'})[S.sub]||'':(S.turn?'Turno de '+esc(tn):'Esperando decisiones…');
   if(mine&&S.sub=='draw')acts+='<button class="btn" data-a="draw">ROBAR CARTA</button>';
   if(mine&&S.sub=='drawn'){acts+='<button class="btn g" data-a="discard">Descartar</button>';if(num(S.held)==11)acts+='<button class="btn" data-a="use11">Usar el 11 (mirar una propia)</button>';if(num(S.held)==12)acts+='<button class="btn" data-a="use12">Usar el 12 (intercambiar con un rival)</button>'}
+  if(mine&&S.sub=='a12b')acts+='<button class="btn g" data-a="cancel12">Mirar y no intercambiar</button>';
   if(S.dec==me)acts+='<button class="btn" data-a="keep">SEGUIR PLANTADO</button><button class="btn g" data-a="unplant">DESPLANTARME</button>';
   else if(S.planted[me])acts+='<button class="btn g" data-a="unplant">DESPLANTARME</button>';else if(!(mine&&S.sub!='draw'))acts+='<button class="btn g" data-a="plant">PLANTARSE</button>';
   if(canQ())acts+=`<button class="btn" data-a="qm" style="background:#ffd54a;color:#2b2118">${QM?'Toca la carta…':'¡DESCARTE RÁPIDO '+q.n+'!'}</button>`}
  else if(rv){info='Ronda terminada'+(S.final?'':' · '+nm(S,S.winner)+' empezará la siguiente con una carta más');acts=S.host==me?`<button class="btn" data-a="nextround">${S.final?'Ver resultados finales':'Siguiente ronda'}</button>`:'<p>Espera al anfitrión…</p>'}
- const top=S.discTop!=null?card(S.discTop,true,''):'<div class="c" style="border:2px dashed #fff8;box-shadow:none"></div>';
+ const lastRibbon=S.last?`<div class="last-banner">Última vuelta: faltan ${S.last.left.length} jugadores por jugar</div>`:'';const top=S.discTop!=null?card(S.discTop,true,''):'<div class="c" style="border:2px dashed #fff8;box-shadow:none"></div>';
  const held=S.phase=='play'&&S.turn==me&&S.held!=null?`<div><small>Tu carta robada</small>${card(S.held,true,'')}</div>`:'';
- m.innerHTML=`<div class="table"><div class="row" style="justify-content:space-between"><b>Sala ${esc(code)} · Ronda ${S.round}${S.final?' (última)':''}</b><span class="chip">${S.deckN} en el mazo</span></div><div class="rivs" style="margin-top:8px">${oth.map(p=>`<div class="rv${S.turn==p.id?' on':''}"><b>${esc(p.name)}</b><small>${S.hands[p.id].length} cartas · ${st(p)}${S.dec==p.id?' · decidiendo':''}${rv?' · '+S.hands[p.id].reduce((a,c)=>a+val(c),0)+' pts':''}</small>${hand(p.id)}</div>`).join('')}</div>
+ m.innerHTML=`${lastRibbon}<div class="table"><div class="row" style="justify-content:space-between"><b>Sala ${esc(code)} · Ronda ${S.round}${S.final?' (última)':''}</b><span class="chip">${S.deckN} en el mazo</span></div><div class="rivs" style="margin-top:8px">${oth.map(p=>`<div class="rv${S.turn==p.id?' on':''}"><b>${esc(p.name)}</b><small>${S.hands[p.id].length} cartas · ${st(p)}${S.dec==p.id?' · decidiendo':''}${rv?' · '+S.hands[p.id].reduce((a,c)=>a+val(c),0)+' pts':''}</small>${hand(p.id)}</div>`).join('')}</div>
  <div class="mid"><div><small>Montón de robo</small>${S.deckN?`<div class="c b${S.turn==me&&S.sub=='draw'&&S.phase=='play'?' k':''}"${S.turn==me&&S.sub=='draw'?' data-a="draw"':''}></div>`:'<div class="c"></div>'}</div>${held}<div><small>Descarte</small>${top}</div></div>
  <div class="msg">${info}</div><div class="logs">${(S.log||[]).slice(-3).map(esc).join(' · ')}</div>
  <div class="me${S.turn==me?' on':''}"><b>${esc(nm(S,me))}</b> <small>${st({id:me})}${rv?' · '+S.hands[me].reduce((a,c)=>a+val(c),0)+' pts':''}</small>${hand(me)}</div><div class="acts">${acts}</div></div>
@@ -97,7 +100,7 @@ start:()=>A('start'),ready:()=>A('ready'),draw:()=>A('draw'),discard:()=>A('disc
 qm:()=>{QM=!QM;render()},
 peek:async d=>{const j=await A('peek',{i:+d.i});if(j&&j.card!=null){T={p:me,i:+d.i,c:j.card,u:Date.now()+2500};render();tmo(2500)}},
 look11:async d=>{const j=await A('look11',{i:+d.i});if(j&&j.card!=null){T={p:me,i:+d.i,c:j.card,u:Date.now()+3000};render();tmo(3000)}},
-replace:d=>A('replace',{i:+d.i}),swap12:d=>A('swap12',{i:+d.i}),pick12:d=>A('pick12',{rp:d.p,ri:+d.i}),
+replace:d=>A('replace',{i:+d.i}),swap12:d=>A('swap12',{i:+d.i}),cancel12:()=>A('cancel12'),pick12:d=>A('pick12',{rp:d.p,ri:+d.i}),
 quick:async d=>{QM=false;render();await A('quick',{i:+d.i})}};
 document.addEventListener('click',e=>{const t=e.target.closest('[data-a]');if(t&&H[t.dataset.a])H[t.dataset.a](t.dataset)});
 (()=>{const c=location.hash.slice(1).toUpperCase();if(c){code=c;try{const o=JSON.parse(ls.get('c-s-'+c)||'null');if(o&&o.pid){me=o.pid;tk=o.token;connect()}}catch(e){}}render()})();
