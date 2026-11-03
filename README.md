@@ -30,11 +30,23 @@ Al principio de `rules.js` está `CFG`:
 - `ABILITY_QD`: si el 11/12 usado abre descarte rápido.
 - `QD_ON_REPLACE`: si la carta cambiada por sustitución abre descarte rápido.
 - `QD_MS`: duración de la ventana de descarte rápido (milisegundos).
+- `END_AT`: la ronda en la que alguien empieza con este número de cartas (10) es la última. Todos empiezan con 4 y solo el ganador de cada ronda suma una carta.
+- `MARK_MS`: tiempo que se resalta, para todos y sin mostrar su valor, la carta de un rival que se miró o se cambió con el 12.
+
+## Habilidad del 12
+Al ver la carta de un rival puedes intercambiarla por una tuya o pulsar **No cambiar** (acción `skip12`, termina tu turno). En los dos casos la carta del rival se resalta unos segundos y su dueño recibe un aviso ("X ha mirado tu carta de la posición N" o "X te ha cambiado tu carta de la posición N"). El aviso nunca incluye valores.
 
 ## Pruebas
-`node test.js` arranca el servidor y juega partidas completas de 2, 3 y 4 jugadores simulados comprobando reglas, privacidad, reconexión y persistencia.
+`node test.js` comprueba las reglas, ejecuta el cliente (`public/index.html`) con un navegador simulado en todas las fases, y arranca el servidor para jugar partidas completas de 2, 3 y 4 jugadores simulados comprobando reglas, privacidad, reconexión y persistencia.
 
 ## Cómo funciona la privacidad
 - Las manos viajan siempre como huecos vacíos (`null`), también las propias, hasta que termina la ronda.
 - Una carta solo llega a quien la mira (mirar al inicio, habilidad del 11, habilidad del 12), en la respuesta de esa acción.
 - El mazo nunca se envía. Los intentos de descarte rápido se ordenan en el servidor y gana el primero válido.
+
+## Avisos y animaciones (solo visuales)
+- **Se planta:** cartel grande en el centro unos 2,6 s (deja pasar los toques, así no tapa el descarte rápido) y una cinta fija arriba "Última vuelta · faltan: ...".
+- **Cambio de turno:** barra "TU TURNO" / "Turno de X", borde luminoso del jugador activo, cartel "¡TU TURNO!", vibración en móvil y 🔔 en el título de la pestaña.
+- **Cartas moviéndose:** reparto al empezar la ronda, robar, descartar, sustituir, habilidades, descarte rápido, penalización e intercambio con el 12. El servidor envía en `fx` solo quién y qué hueco (nunca valores); el cliente lo anima. Nada retrasa las acciones.
+- Se desactivan con "reducir movimiento" del sistema (los carteles se siguen mostrando, sin movimiento).
+- **Conexión:** punto verde junto al nombre de quien está conectado.
